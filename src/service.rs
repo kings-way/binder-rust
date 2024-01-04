@@ -147,12 +147,47 @@ impl<'a> ServiceManager<'a> {
             &mut parcel,
         )?;
         parcel.read_u32()?;
+//        println!("parcel len: {}, position: {}", parcel.len(), parcel.position());
+//        println!("parcel data: {:x?}", parcel.to_slice());
+
         let flat_object = BinderFlatObject::deserialize(&mut parcel)?;
+        println!("FlatObject handle: {}", flat_object.handle);
 
         self.binder.add_ref(flat_object.handle as i32)?;
         self.binder.acquire(flat_object.handle as i32)?;
 
         Ok(Service::new(self, service_name, interface_name, flat_object.handle as i32))
+    }
+
+    pub fn list_service(&'a mut self) -> Result<bool, Error> {
+        let mut parcel = Parcel::empty();
+
+        parcel.write_interface_token(SERVICE_MANAGER_INTERFACE_TOKEN)?;
+        parcel.write_i32(0xff)?;
+
+        let (_transaction, mut parcel) = self.binder.transact(
+            SERVICE_MANAGER_HANDLE,
+            ServiceManagerFunctions::ListServices as u32,
+            TransactionFlags::empty(),
+            &mut parcel,
+        )?;
+
+//        println!("parcel len: {}, position: {}", parcel.len(), parcel.position());
+//        println!("parcel data: {:x?}", parcel.to_slice());
+
+        println!("return: {}\nservice count: {}", parcel.read_u32()?, parcel.read_u32()?);
+
+        let mut count = 0;
+        loop {
+            if parcel.has_unread_data() {
+                println!("{}\t{}", count, parcel.read_str16()?);
+                count += 1;
+            }
+            else {
+                break;
+            }
+        }
+        Ok(true)
     }
 
     pub fn register_service<BS: BinderService> (
